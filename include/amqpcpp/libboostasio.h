@@ -24,6 +24,7 @@
 #include <boost/asio/strand.hpp>
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
+#include <boost/function.hpp>
 #include <boost/bind.hpp>
 
 // C++17 has 'weak_from_this()' support.
