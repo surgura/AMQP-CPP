@@ -62,11 +62,13 @@ private:
          */
         boost::asio::io_service & _ioservice;
 
+        typedef std::weak_ptr<boost::asio::io_service::strand> strand_weak_ptr;
+        
         /**
          *  The boost asio io_service::strand managed pointer.
          *  @var class std::shared_ptr<boost::asio::io_service>
          */
-        std::weak_ptr<boost::asio::io_service::strand> _strand;
+        strand_weak_ptr _wpstrand;
 
         /**
          *  The boost tcp socket.
@@ -110,15 +112,17 @@ private:
          */
         handler_cb get_dispatch_wrapper(io_handler fn)
         {
-            return [fn, strand = _strand](const boost::system::error_code &ec, const std::size_t bytes_transferred)
+            const strand_weak_ptr wpstrand = _wpstrand;
+
+            return [fn, wpstrand](const boost::system::error_code &ec, const std::size_t bytes_transferred)
             {
-                const std::shared_ptr<boost::asio::io_service::strand> apStrand = strand.lock();
-                if (!apStrand)
+                const strand_shared_ptr strand = wpstrand.lock();
+                if (!strand)
                 {
                     fn(boost::system::errc::make_error_code(boost::system::errc::operation_canceled), std::size_t{0});
                     return;
                 }
-                apStrand->dispatch(boost::bind(fn, ec, bytes_transferred));
+                strand->dispatch(boost::bind(fn, ec, bytes_transferred));
             };
         }
         
@@ -231,14 +235,14 @@ private:
          *  Constructor- initialises the watcher and assigns the filedescriptor to 
          *  a boost socket for monitoring.
          *  @param  io_service      The boost io_service
-         *  @param  strand          A weak pointer to a io_service::strand instance.
+         *  @param  wpstrand        A weak pointer to a io_service::strand instance.
          *  @param  fd              The filedescriptor being watched
          */
         Watcher(boost::asio::io_service &io_service,
-                const std::weak_ptr<boost::asio::io_service::strand> strand,
+                const strand_weak_ptr wpstrand,
                 const int fd) :
             _ioservice(io_service),
-            _strand(strand),
+            _wpstrand(wpstrand),
             _socket(_ioservice)
         {
             _socket.assign(fd);
@@ -311,11 +315,13 @@ private:
          */
         boost::asio::io_service & _ioservice;
 
+        typedef std::weak_ptr<boost::asio::io_service::strand> strand_weak_ptr;
+
         /**
          *  The boost asio io_service::strand managed pointer.
          *  @var class std::shared_ptr<boost::asio::io_service>
          */
-        std::weak_ptr<boost::asio::io_service::strand> _strand;
+        strand_weak_ptr _wpstrand;
 
         /**
          *  The boost asynchronous deadline timer.
@@ -332,21 +338,24 @@ private:
          */
         handler_fn get_handler(TcpConnection *const connection, const uint16_t timeout)
         {
-            auto fn = boost::bind(&Timer::timeout,
+            const auto fn = boost::bind(&Timer::timeout,
                                   this,
                                   _1,
                                   PTR_FROM_THIS(),
                                   connection,
                                   timeout);
-            return [fn, strand = _strand](const boost::system::error_code &ec)
+
+            const strand_weak_ptr wpstrand = _wpstrand;
+
+            return [fn, wpstrand](const boost::system::error_code &ec)
             {
-                const std::shared_ptr<boost::asio::io_service::strand> apStrand = strand.lock();
-                if (!apStrand)
+                const strand_shared_ptr strand = wpstrand.lock();
+                if (!strand)
                 {
                     fn(boost::system::errc::make_error_code(boost::system::errc::operation_canceled));
                     return;
                 }
-                apStrand->dispatch(boost::bind(fn, ec));
+                strand->dispatch(boost::bind(fn, ec));
             };
         }
 
@@ -396,13 +405,13 @@ private:
         /**
          *  Constructor
          *  @param  io_service The boost asio io_service.
-         *  @param  strand     A weak pointer to a io_service::strand instance.
+         *  @param  wpstrand   A weak pointer to a io_service::strand instance.
          */
         Timer(boost::asio::io_service &io_service,
-              const std::weak_ptr<boost::asio::io_service::strand> strand) :
-            _ioservice(io_service),
-            _strand(strand),
-            _timer(_ioservice)
+              const strand_weak_ptr wpstrand) :
+              _ioservice(io_service),
+              _wpstrand(wpstrand),
+              _timer(_ioservice)
         {
 
         }
@@ -448,11 +457,13 @@ private:
      */
     boost::asio::io_service & _ioservice;
 
+    typedef std::shared_ptr<boost::asio::io_service::strand> strand_shared_ptr;
+
     /**
      *  The boost asio io_service::strand managed pointer.
      *  @var class std::shared_ptr<boost::asio::io_service>
      */
-    std::shared_ptr<boost::asio::io_service::strand> _strand;
+    strand_shared_ptr _strand;
 
 
     /**
